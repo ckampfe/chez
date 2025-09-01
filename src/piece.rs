@@ -105,7 +105,7 @@ impl Piece {
         }
     }
 
-    pub fn moves(&self, board: &Board) -> Vec<Position> {
+    pub fn possible_moves(&self, board: &Board) -> Vec<Position> {
         match self.kind {
             PieceKind::King => king_moves(self, board),
             PieceKind::Queen => queen_moves(self, board),
@@ -113,6 +113,17 @@ impl Piece {
             PieceKind::Bishop => bishop_moves(self, board),
             PieceKind::Knight => knight_moves(self, board),
             PieceKind::Pawn => pawn_moves(self, board),
+        }
+    }
+
+    pub fn attacks(&self, board: &Board) -> Vec<Position> {
+        match self.kind {
+            PieceKind::King => king_attacks(self, board),
+            PieceKind::Queen => queen_moves(self, board),
+            PieceKind::Rook => rook_moves(self, board),
+            PieceKind::Bishop => bishop_moves(self, board),
+            PieceKind::Knight => knight_moves(self, board),
+            PieceKind::Pawn => pawn_attacks(self, board),
         }
     }
 
@@ -190,6 +201,36 @@ fn pawn_moves(piece: &Piece, board: &Board) -> Vec<Position> {
     moves
 }
 
+fn pawn_attacks(piece: &Piece, board: &Board) -> Vec<Position> {
+    let diagonal_take_left = match piece.color {
+        Color::Black => |position: &Position| (position.column + 1, position.row - 1),
+        Color::White => |position: &Position| (position.column + 1, position.row + 1),
+    };
+
+    let diagonal_take_right = match piece.color {
+        Color::Black => |position: &Position| (position.column - 1, position.row - 1),
+        Color::White => |position: &Position| (position.column - 1, position.row + 1),
+    };
+
+    let mut moves = vec![];
+
+    let diagonal_left = diagonal_take_left(&piece.position).into();
+    if let Some(other_piece) = board.get_piece(&diagonal_left)
+        && other_piece.color != piece.color
+    {
+        moves.push(diagonal_left);
+    }
+
+    let diagonal_right = diagonal_take_right(&piece.position).into();
+    if let Some(other_piece) = board.get_piece(&diagonal_right)
+        && other_piece.color != piece.color
+    {
+        moves.push(diagonal_right);
+    }
+
+    moves
+}
+
 fn bishop_moves(piece: &Piece, board: &Board) -> Vec<Position> {
     let mut moves = vec![];
 
@@ -231,6 +272,32 @@ fn queen_moves(piece: &Piece, board: &Board) -> Vec<Position> {
     let bishop_moves = bishop_moves(piece, board);
     rook_moves.extend_from_slice(&bishop_moves);
     rook_moves
+}
+
+fn king_attacks(piece: &Piece, board: &Board) -> Vec<Position> {
+    let same_color_piece_positions: HashSet<_> = board
+        .get_pieces(piece.color)
+        .filter(|other_piece| *other_piece != piece)
+        .map(|piece| piece.position)
+        .collect();
+
+    [-1, 0, 1]
+        .into_iter()
+        .flat_map(|column| {
+            [-1, 0, 1].into_iter().filter_map(move |row| {
+                if column == 0 && row == 0 {
+                    None
+                } else {
+                    Some(Position::new(
+                        piece.position.column + column,
+                        piece.position.row + row,
+                    ))
+                }
+            })
+        })
+        .filter(|position| position.is_on_board())
+        .filter(|position| !same_color_piece_positions.contains(position))
+        .collect()
 }
 
 // TODO

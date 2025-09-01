@@ -85,14 +85,14 @@ impl Board {
         self.pieces.iter().filter(move |piece| piece.color == color)
     }
 
-    /// all pieces being attacked by given color
+    /// all positions being attacked by given color
     pub fn all_attacks(&self, color: Color) -> HashSet<Position> {
         let mut attacks = HashSet::new();
 
         let pieces = self.get_pieces(color);
 
         for piece in pieces {
-            let moves = piece.moves(self);
+            let moves = piece.attacks(self);
             attacks.extend(moves);
         }
 

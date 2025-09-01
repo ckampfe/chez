@@ -3,6 +3,11 @@
 // - [ ] load game from db
 // - [x] store game moves in db
 // - [ ] broadcast move to opponent and spectators
+// - [ ] turns
+// - [ ] takes view
+// - [x] regular moves
+// - [x] takes
+// - [ ] special moves (en passant, castling)
 
 use crate::board::Board;
 use crate::piece::{Color, Piece, Position};
@@ -264,7 +269,7 @@ async fn square_clicked(
     } else {
         if let Some(piece) = game_state.board.get_piece(&position) {
             debug!("no piece selected: clicked on a piece: {:?}", &piece);
-            let moves = piece.moves(&game_state.board);
+            let moves = piece.possible_moves(&game_state.board);
 
             game_state.possible_moves = moves;
             game_state.selected = Some(position);
