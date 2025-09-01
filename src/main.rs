@@ -35,7 +35,6 @@ macro_rules! layout {
                     meta charset="utf-8";
                     meta name="viewport" content="width=device-width, initial-scale=1.0";
                     title { "chess" }
-                    // link rel="stylesheet" href="https://unpkg.com/missing.css@1.2.0";
                     script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4" {}
                     script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.6/dist/htmx.min.js" {}
                     style {
