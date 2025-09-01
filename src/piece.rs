@@ -1,7 +1,25 @@
-use crate::Color::*;
-use crate::{board::Board, color::Color};
+use crate::board::Board;
 use std::collections::HashSet;
 use std::ops::Rem;
+
+use serde::Deserialize;
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Hash)]
+pub enum Color {
+    #[serde(rename = "black")]
+    Black,
+    #[serde(rename = "white")]
+    White,
+}
+
+impl Color {
+    pub fn invert(&self) -> Color {
+        match self {
+            Color::Black => Color::White,
+            Color::White => Color::Black,
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Position {
@@ -102,18 +120,18 @@ impl Piece {
         use PieceKind::*;
 
         match (self.kind, self.color) {
-            (King, Black) => "♚",
-            (King, White) => "♔",
-            (Queen, Black) => "♛",
-            (Queen, White) => "♕",
-            (Rook, Black) => "♜",
-            (Rook, White) => "♖",
-            (Bishop, Black) => "♝",
-            (Bishop, White) => "♗",
-            (Knight, Black) => "♞",
-            (Knight, White) => "♘",
-            (Pawn, Black) => "♟",
-            (Pawn, White) => "♙",
+            (King, Color::Black) => "♚",
+            (King, Color::White) => "♔",
+            (Queen, Color::Black) => "♛",
+            (Queen, Color::White) => "♕",
+            (Rook, Color::Black) => "♜",
+            (Rook, Color::White) => "♖",
+            (Bishop, Color::Black) => "♝",
+            (Bishop, Color::White) => "♗",
+            (Knight, Color::Black) => "♞",
+            (Knight, Color::White) => "♘",
+            (Pawn, Color::Black) => "♟",
+            (Pawn, Color::White) => "♙",
         }
     }
 }
@@ -122,18 +140,18 @@ impl Piece {
 // - en passant
 fn pawn_moves(piece: &Piece, board: &Board) -> Vec<Position> {
     let straight_move_1 = match piece.color {
-        Black => |position: &Position| (position.column, position.row - 1),
-        White => |position: &Position| (position.column, position.row + 1),
+        Color::Black => |position: &Position| (position.column, position.row - 1),
+        Color::White => |position: &Position| (position.column, position.row + 1),
     };
 
     let diagonal_take_left = match piece.color {
-        Black => |position: &Position| (position.column + 1, position.row - 1),
-        White => |position: &Position| (position.column + 1, position.row + 1),
+        Color::Black => |position: &Position| (position.column + 1, position.row - 1),
+        Color::White => |position: &Position| (position.column + 1, position.row + 1),
     };
 
     let diagonal_take_right = match piece.color {
-        Black => |position: &Position| (position.column - 1, position.row - 1),
-        White => |position: &Position| (position.column - 1, position.row + 1),
+        Color::Black => |position: &Position| (position.column - 1, position.row - 1),
+        Color::White => |position: &Position| (position.column - 1, position.row + 1),
     };
 
     let mut moves = vec![];

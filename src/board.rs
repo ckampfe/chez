@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::color::Color::{self, Black, White};
+use crate::piece::Color::{self, Black, White};
 use crate::piece::PieceKind::{self, *};
 use crate::piece::{Piece, Position};
 

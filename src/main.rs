@@ -5,8 +5,7 @@
 // - [ ] broadcast move to opponent and spectators
 
 use crate::board::Board;
-use crate::color::Color;
-use crate::piece::{Piece, Position};
+use crate::piece::{Color, Piece, Position};
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -25,7 +24,6 @@ use tracing::{debug, info};
 use uuid::Uuid;
 
 mod board;
-mod color;
 mod piece;
 
 macro_rules! layout {
