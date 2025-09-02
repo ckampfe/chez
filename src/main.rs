@@ -15,7 +15,6 @@
 
 use crate::board::Board;
 use crate::piece::{Color, Piece, Position};
-use anyhow::anyhow;
 use axum::Router;
 use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -146,14 +145,64 @@ async fn games_play(
     Path(game_id): Path<Uuid>,
     Query(params): Query<GamesPlayParams>,
 ) -> Result<impl IntoResponse, AppError> {
-    let state = state.lock().await;
+    let mut state = state.lock().await;
 
     if let Some(game_state) = state.games.get(&game_id) {
         Ok(layout! {
             (board(game_id, &game_state.board, params.playing_as))
         })
     } else {
-        Err(anyhow!("could not find game with that id").into())
+        let mut conn = state.pool.acquire().await?;
+
+        let moves: Vec<(i8, i8, i8, i8)> = sqlx::query_as(
+            "
+    select
+        from_column,
+        from_row,
+        to_column,
+        to_row
+    from moves
+    where game_id = ?
+    order by inserted_at asc;
+    ",
+        )
+        .bind(game_id)
+        .fetch_all(&mut *conn)
+        .await?;
+
+        let mut board_state = Board::new();
+
+        let mut takes = vec![];
+
+        let to_move = if moves.len() % 2 == 0 {
+            Color::White
+        } else {
+            Color::Black
+        };
+
+        for (from_column, from_row, to_column, to_row) in moves {
+            if let Some(take) =
+                board_state.move_piece(&(from_column, from_row).into(), &(to_column, to_row).into())
+            {
+                takes.push(take);
+            }
+        }
+
+        let game_state = GameState {
+            board: board_state,
+            selected: None,
+            possible_moves: vec![],
+            takes,
+            to_move,
+        };
+
+        let out = layout! {
+            (board(game_id, &game_state.board, params.playing_as))
+        };
+
+        state.games.insert(game_id, game_state);
+
+        Ok(out)
     }
 }
 
@@ -167,8 +216,8 @@ fn board(game_id: Uuid, board_data: &Board, playing_as: Color) -> Markup {
     };
 
     html! {
-        div id="board" class="max-h-svh sm:order-2 sm:col-span-4 items-center justify-center " {
-            div class="max-h-svh m-6 border-solid border-1 aspect-square" {
+        div id="board" class="max-h-svh sm:order-2 sm:col-span-4 items-center justify-center" {
+            div class="max-h-svh p-4 border-solid border-1 aspect-square" {
                 @for row in row_range.into_iter() {
                     div class="flex"  {
                         @for column in column_range.into_iter() {
