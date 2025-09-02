@@ -8,6 +8,9 @@
 // - [x] regular moves
 // - [x] takes
 // - [ ] special moves (en passant, castling)
+// - [ ] users/csrf/magiclinks
+// - [ ] something to interactively update game state and show when
+//       opponent moves, my turn, etc. (sse, polling, etc.)
 
 use crate::board::Board;
 use crate::piece::{Color, Piece, Position};
