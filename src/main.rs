@@ -169,14 +169,16 @@ fn board(game_id: Uuid, board_data: &Board, playing_as: Color) -> Markup {
     html! {
         div id="board" class="max-h-svh sm:order-2 sm:col-span-4 items-center justify-center " {
             div class="max-h-svh m-6 border-solid border-1 aspect-square" {
-                @for (row, start_color) in row_range.into_iter().zip(background_color_stream(Color::White)) {
+                @for row in row_range.into_iter() {
                     div class="flex"  {
-                        @for (column, color) in column_range.into_iter().zip(background_color_stream(start_color)) {
-                            @if let Some(piece) = board_data.get_piece(&(column, row).into()) {
-                                (square(game_id, &(column, row).into(), color.into(), piece.repr(), false))
-                            } @else {
-                                (square(game_id, &(column, row).into(), color.into(), "", false))
-                            }
+                        @for column in column_range.into_iter() {
+                            (square(
+                                game_id,
+                                &(column, row).into(),
+                                Position::from((column, row)).color().into(),
+                                board_data.get_piece(&(column, row).into()).map_or("", |piece| piece.repr()),
+                                false
+                            ))
                         }
                     }
                 }
@@ -373,20 +375,6 @@ fn background_color(color: SquareColor) -> &'static str {
             "bg-pink-400 flex basis-1/8 aspect-square select-none items-center justify-center"
         }
     }
-}
-
-fn background_color_stream(start_color: Color) -> impl Iterator<Item = Color> {
-    let mut current = start_color;
-    std::iter::from_fn(move || match current {
-        Color::White => {
-            current = Color::Black;
-            Some(Color::Black)
-        }
-        Color::Black => {
-            current = Color::White;
-            Some(Color::White)
-        }
-    })
 }
 
 struct AppState {
