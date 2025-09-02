@@ -15,11 +15,12 @@
 
 use crate::board::Board;
 use crate::piece::{Color, Piece, Position};
+use anyhow::anyhow;
 use axum::Router;
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Redirect, Response};
-use axum::routing::{get, put};
+use axum::routing::{get, post, put};
 use clap::Parser;
 use maud::{Markup, html};
 use serde::Deserialize;
@@ -66,36 +67,21 @@ macro_rules! layout {
     };
 }
 
-async fn games_new(
-    State(state): State<Arc<Mutex<AppState>>>,
-) -> Result<impl IntoResponse, AppError> {
-    let state = state.lock().await;
-
-    let mut conn = state.pool.acquire().await?;
-
-    let (id,): (Uuid,) = sqlx::query_as(
-        "
-    insert into games (id) values (?) returning id;
-    ",
-    )
-    .bind(Uuid::new_v4())
-    .fetch_one(&mut *conn)
-    .await?;
-
-    let out = layout! {
+async fn games_new() -> Result<impl IntoResponse, AppError> {
+    Ok(layout! {
         html! {
             div {
                 ("Play as:")
                 div {
                     button
-                        hx-put=(format!("/games/{}/start?playing_as=black", id))
+                        hx-post="/games/create?playing_as=black"
                         hx-target="body"
                         hx-push-url="true"
                     {
                         "Black"
                     }
                     button
-                        hx-put=(format!("/games/{}/start?playing_as=white", id))
+                        hx-post="/games/create?playing_as=white"
                         hx-target="body"
                         hx-push-url="true"
                     {
@@ -104,26 +90,32 @@ async fn games_new(
                 }
             }
         }
-    };
-
-    Ok(out)
+    })
 }
 
 #[derive(Deserialize)]
-struct GamesPlay {
+struct GamesPlayParams {
     playing_as: Color,
 }
 
-async fn games_play(
+async fn games_create(
     State(state): State<Arc<Mutex<AppState>>>,
-    Path(game_id): Path<Uuid>,
-    Query(params): Query<GamesPlay>,
+    Query(params): Query<GamesPlayParams>,
 ) -> Result<impl IntoResponse, AppError> {
     let mut state = state.lock().await;
 
-    // let conn = state.pool.acquire().await?;
+    let mut conn = state.pool.acquire().await?;
 
-    let game_state = state.games.entry(game_id).or_insert_with(|| GameState {
+    let (game_id,): (Uuid,) = sqlx::query_as(
+        "
+    insert into games (id) values (?) returning id;
+    ",
+    )
+    .bind(Uuid::new_v4())
+    .fetch_one(&mut *conn)
+    .await?;
+
+    state.games.entry(game_id).or_insert_with(|| GameState {
         board: Board::new(),
         selected: None,
         possible_moves: vec![],
@@ -131,26 +123,52 @@ async fn games_play(
         to_move: Color::White,
     });
 
-    let out = layout! {
-        (board(game_id, &game_state.board, params.playing_as))
-    };
+    let mut headers = HeaderMap::new();
 
-    Ok(out)
+    headers.insert(
+        "HX-Location",
+        format!(
+            "/games/{game_id}/play?playing_as={}",
+            match params.playing_as {
+                Color::Black => "black",
+                Color::White => "white",
+            }
+        )
+        .parse()
+        .unwrap(),
+    );
+
+    Ok(headers)
 }
 
-const INCREASING: [i8; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
-const DECREASING: [i8; 8] = [7, 6, 5, 4, 3, 2, 1, 0];
+async fn games_play(
+    State(state): State<Arc<Mutex<AppState>>>,
+    Path(game_id): Path<Uuid>,
+    Query(params): Query<GamesPlayParams>,
+) -> Result<impl IntoResponse, AppError> {
+    let state = state.lock().await;
+
+    if let Some(game_state) = state.games.get(&game_id) {
+        Ok(layout! {
+            (board(game_id, &game_state.board, params.playing_as))
+        })
+    } else {
+        Err(anyhow!("could not find game with that id").into())
+    }
+}
 
 fn board(game_id: Uuid, board_data: &Board, playing_as: Color) -> Markup {
-    let (row_range, column_range) = if playing_as == Color::Black {
-        (INCREASING, DECREASING)
-    } else {
-        (DECREASING, INCREASING)
+    const INCREASING: [i8; 8] = [0, 1, 2, 3, 4, 5, 6, 7];
+    const DECREASING: [i8; 8] = [7, 6, 5, 4, 3, 2, 1, 0];
+
+    let (row_range, column_range) = match playing_as {
+        Color::Black => (INCREASING, DECREASING),
+        Color::White => (DECREASING, INCREASING),
     };
 
     html! {
         div id="board" class="max-h-svh sm:order-2 sm:col-span-4 items-center justify-center " {
-            div class="max-h-svh p-6 border-solid border-1 aspect-square" {
+            div class="max-h-svh m-6 border-solid border-1 aspect-square" {
                 @for (row, start_color) in row_range.into_iter().zip(background_color_stream(Color::White)) {
                     div class="flex"  {
                         @for (column, color) in column_range.into_iter().zip(background_color_stream(start_color)) {
@@ -317,14 +335,14 @@ fn square(
     position: &Position,
     square_background_color: SquareColor,
     body: &str,
-    oob: bool,
+    swap_oob: bool,
 ) -> Markup {
-    if oob {
+    if swap_oob {
         html! {
             div
                 id=(format!("square-{}{}", position.column, position.row))
                 hx-swap-oob="true"
-                hx-put=(format!("/games/{}/square/clicked?column={}&row={}", game_id, position.column, position.row))
+                hx-put=(format!("/games/{}/play/square_clicked?column={}&row={}", game_id, position.column, position.row))
                 hx-swap="none"
                 class=(background_color(square_background_color)) {
                 (body)
@@ -334,7 +352,7 @@ fn square(
         html! {
             div
                 id=(format!("square-{}{}", position.column, position.row))
-                hx-put=(format!("/games/{}/square/clicked?column={}&row={}", game_id, position.column, position.row))
+                hx-put=(format!("/games/{}/play/square_clicked?column={}&row={}", game_id, position.column, position.row))
                 hx-swap="none"
                 class=(background_color(square_background_color)) {
                 (body)
@@ -452,8 +470,9 @@ async fn main() -> anyhow::Result<()> {
     let router = Router::new()
         .route("/", get(|| async { Redirect::to("/games/new") }))
         .route("/games/new", get(games_new))
-        .route("/games/{game_id}/start", put(games_play))
-        .route("/games/{game_id}/square/clicked", put(square_clicked))
+        .route("/games/create", post(games_create))
+        .route("/games/{game_id}/play", get(games_play))
+        .route("/games/{game_id}/play/square_clicked", put(square_clicked))
         .with_state(Arc::new(Mutex::new(AppState {
             pool,
             games: HashMap::new(),

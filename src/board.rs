@@ -86,6 +86,8 @@ impl Board {
     }
 
     /// all positions being attacked by given color
+    /// this is a naive calculation that does not take
+    /// the opponent's attacks into account
     pub fn all_attacks(&self, color: Color) -> HashSet<Position> {
         let mut attacks = HashSet::new();
 
